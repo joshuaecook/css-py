@@ -1,0 +1,32 @@
+#summary How to use this library.
+#labels Featured
+
+=== Iterating an entire stylesheet. ===
+
+{{{
+    from css.parse import parse
+
+    data = """p { color: red; font-size: 12pt }
+    p:first-letter { color: green; font-size: 200% }
+    p:first-line { color: blue }"""
+
+    for rule in parse(data):
+        print rule
+        # or do something with each rule
+}}}
+
+=== Iterating the declarations of a single rule. ===
+
+{{{
+    data = """EM {
+    padding: 2px; 
+    margin: 1em;
+    border-width: medium;
+    border-style: dashed;
+    line-height: 2.4em;
+    }"""
+
+    for decl in parse(data)[0]:
+        print decl
+        # or do something else with each declaration
+}}}
