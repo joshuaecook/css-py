@@ -6,14 +6,9 @@ CSS Selectors.
 from css import SyntaxObject
 import serialize
 
-class Selector(SyntaxObject):
+class Simple(SyntaxObject):
     '''
-    An abstract type of selector.
-    '''
-
-class SimpleSelector(Selector):
-    '''
-    An abstract type of selector, other than a SelectorGroup.
+    An simple selector pattern.
     '''
     def __init__(self, element_name='*', ids=None, classes=None, attribs=None, pseudo=None):
         self.element_name = element_name
@@ -35,13 +30,52 @@ class SimpleSelector(Selector):
             r.append( 'attribs=' + repr(self.attribs) )
         if self.pseudo:
             r.append( 'pseudo=' + repr(self.pseudo) )
-        return 'SimpleSelector(%s)' % (', '.join(r),)
+        return 'Simple(%s)' % (', '.join(r),)
 
     def datum(self, serializer):
         return serialize.serialize_SimpleSelector(self, serializer)
 
+class Combined(SyntaxObject):
+    '''
+    A combined selector, e.g. a descendant, child, or adjacent sibling selector.
+    '''
+    Combinators = {
+        'descendant' : object(),
+        'child' : object(),
+        'adjacent' : object()
+        }
+    Combinators.update({
+        ' ' : Combinators['descendant'],
+        '>' : Combinators['child'],
+        '+' : Combinators['adjacent']
+        })
 
-class SelectorGroup(Selector):
+    def __init__(self, selectorA, selectorB, combinator=' '):
+        self.selectorA = selectorA
+        self.selectorB = selectorB
+        self.combinator = self.Combinators[combinator]
+
+    def __repr__(self):
+        Combinators = self.Combinators
+        r = 'Combined(%r, %r' % (self.selectorA, self.selectorB)
+        if not self.combinator is Combinators['descendant']:
+            if self.combinator is Combinators['child']:
+                r += ', combinator=%r' % (">",)
+            elif self.combinator is Combinators['adjacent']:
+                r += ', combinator=%r' % ("+",)
+        r += ')'
+        return r
+
+def descendant(selectorA, selectorB):
+    return Combined(selectorA, selectorB, 'descendant')
+
+def child(selectorA, selectorB):
+    return Combined(selectorA, selectorB, 'child')
+
+def adjacent(selectorA, selectorB):
+    return Combined(selectorA, selectorB, 'adjacent')
+
+class Group(SyntaxObject):
     '''
     A group of several SimpleSelector instances that can share the same ruleset.
     '''
@@ -49,7 +83,7 @@ class SelectorGroup(Selector):
         self.selectors = list(selectors)
 
     def __repr__(self):
-        return 'SelectorGroup(' + ','.join([repr(x) for x in self.selectors]) + ')'
+        return 'Group(' + ','.join([repr(x) for x in self.selectors]) + ')'
 
     def __iter__(self):
         '''Iterates the list of selectors.'''
@@ -72,8 +106,6 @@ class SelectorGroup(Selector):
 
         Modifies the group of selectors *in place.*
         '''
-        if not isinstance(selector, SimpleSelector):
-            raise ArgumentError, 'Expected a SimpleSelector.'
         self.selectors.append(selector)
 
     def datum(self, serializer):
