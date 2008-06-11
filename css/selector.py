@@ -3,10 +3,10 @@
 CSS Selectors.
 '''
 
-from css import SyntaxObject
+import css
 import serialize
 
-class Simple(SyntaxObject):
+class Simple(css.SyntaxObject):
     '''
     An simple selector pattern.
     '''
@@ -20,8 +20,6 @@ class Simple(SyntaxObject):
     def __repr__(self):
         r = list()
 
-        if not (self.ids or self.classes or self.attribs or self.pseudo):
-            r.append( repr(self.element_name) )
         if self.ids:
             r.append( 'ids=' + repr(self.ids) )
         if self.classes:
@@ -30,34 +28,33 @@ class Simple(SyntaxObject):
             r.append( 'attribs=' + repr(self.attribs) )
         if self.pseudo:
             r.append( 'pseudo=' + repr(self.pseudo) )
-        return 'Simple(%s)' % (', '.join(r),)
+        return 'Simple(%r, %s)' % (self.element_name, ', '.join(r),)
 
     def datum(self, serializer):
         return serialize.serialize_SimpleSelector(self, serializer)
 
-class Combined(SyntaxObject):
-    '''
-    A combined selector, e.g. a descendant, child, or adjacent sibling selector.
-    '''
-    Combinators = {
-        'descendant' : object(),
-        'child' : object(),
-        'adjacent' : object()
-        }
-    Combinators.update({
+Combinators = {
+    'descendant' : object(),
+    'child' : object(),
+    'adjacent' : object()
+    }
+Combinators.update({
         ' ' : Combinators['descendant'],
         '>' : Combinators['child'],
         '+' : Combinators['adjacent']
         })
 
-    def __init__(self, selectorA, selectorB, combinator=' '):
-        self.selectorA = selectorA
-        self.selectorB = selectorB
-        self.combinator = self.Combinators[combinator]
+class Combined(css.SyntaxObject):
+    '''
+    A combined selector, e.g. a descendant, child, or adjacent sibling selector.
+    '''
+    def __init__(self, lhs, rhs, combinator=' '):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.combinator = Combinators[combinator]
 
     def __repr__(self):
-        Combinators = self.Combinators
-        r = 'Combined(%r, %r' % (self.selectorA, self.selectorB)
+        r = 'Combined(%r, %r' % (self.lhs, self.rhs)
         if not self.combinator is Combinators['descendant']:
             if self.combinator is Combinators['child']:
                 r += ', combinator=%r' % (">",)
@@ -66,16 +63,19 @@ class Combined(SyntaxObject):
         r += ')'
         return r
 
-def descendant(selectorA, selectorB):
-    return Combined(selectorA, selectorB, 'descendant')
+    def datum(self, serializer):
+        return serialize.serialize_CombinedSelector(self, serializer)
 
-def child(selectorA, selectorB):
-    return Combined(selectorA, selectorB, 'child')
+def descendant(lhs, rhs):
+    return Combined(lhs, rhs, ' ')
 
-def adjacent(selectorA, selectorB):
-    return Combined(selectorA, selectorB, 'adjacent')
+def child(lhs, rhs):
+    return Combined(lhs, rhs, '>')
 
-class Group(SyntaxObject):
+def adjacent(lhs, rhs):
+    return Combined(lhs, rhs, '+')
+
+class Group(css.SyntaxObject):
     '''
     A group of several SimpleSelector instances that can share the same ruleset.
     '''

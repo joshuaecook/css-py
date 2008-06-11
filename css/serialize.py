@@ -21,6 +21,7 @@ import css
 # value for objects of builtin types.
 
 def serialize(obj, printer=str):
+    import selector
     if isinstance(obj, css.Hexcolor):
         return serialize_Hexcolor(obj, printer)
     elif isinstance(obj, css.Function):
@@ -47,12 +48,24 @@ def serialize(obj, printer=str):
         return serialize_Import(obj, printer)
     elif isinstance(obj, css.Stylesheet):
         return serialize_Stylesheet(obj, printer)
-    elif isinstance(obj, selector.SimpleSelector):
+    elif isinstance(obj, selector.Simple):
         return serialize_SimpleSelector(obj, printer)
-    elif isinstance(obj, selector.SelectorGroup):
+    elif isinstance(obj, selector.Group):
         return serialize_SelectorGroup(obj, printer)
+    elif isinstance(obj, selector.Combined):
+        return serialize_CombinedSelector(obj, printer)
     else:
         return printer(obj)
+
+def serialize_CombinedSelector(obj, printer):
+    import selector
+    combinator = {
+        selector.Combinators['descendant']: ' ',
+        selector.Combinators['child']: '>',
+        selector.Combinators['adjacent']: '+'
+        }.get(obj.combinator)
+        
+    return printer(obj.lhs) + printer(combinator) + printer(obj.rhs)
 
 def serialize_SelectorGroup(obj, printer):
     return printer(',').join([printer(x) for x in obj.selectors])
@@ -109,7 +122,7 @@ def serialize_Declaration(obj, printer):
     return s
 
 def serialize_Ruleset(obj, printer):
-    s = serialize_Selector_group(obj.selectors, printer)
+    s = serialize_SelectorGroup(obj.selectors, printer)
     s += serialize_Declaration_block(obj.declarations, printer)
     return s
 
