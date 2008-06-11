@@ -7,6 +7,7 @@ import re
 from ply import yacc as ply_yacc
 from csslex import csslexer
 import css
+import selector
 
 __all__ = ('cssparser', 'yacc')
 
@@ -26,6 +27,13 @@ def STRING_value(x):
     q = x[0]
     return css.String(x[1:-1].replace(u'\\'+q,q))
 
+def add_selectors(one, another):
+    element_name = one.element_name
+    ids = one.ids + another.ids
+    classes = one.classes + another.ids
+    attribs = one.attribs + another.attribs
+    pseudo = one.pseudo + another.pseudo
+    return selector.Simple(element_name, ids=ids, classes=classes, attribs=attribs, pseudo=pseudo)
 
 class cssparser(object):
     tokens = csslexer.tokens
@@ -39,7 +47,6 @@ class cssparser(object):
             p[0] = css.Stylesheet(p[4], p[3], p[1])
         else:
             p[0] = css.Stylesheet(p[3], p[2])
-        print p.slice
 
     def p_charset(self, p):
         '''
@@ -99,7 +106,7 @@ class cssparser(object):
                    | GREATER spaces
                    | spaces
         '''
-        p[0] = p[1]
+        p[0] = p[1].strip() or ' '
 
     def p_unary_operator(self, p):
         '''
@@ -123,23 +130,36 @@ class cssparser(object):
     def p_selector(self, p):
         '''
         selector : simple_selector simple_selectors
+                 | simple_selector
         '''
-        p[0] = u''.join(p[1:])
+        if len(p) == 2:
+            p[0] = p[1]
+        else:
+            p[0] = p[1]
+            for x in p[2]:
+                p[0] = selector.Combined(p[0], x[0], x[1])
 
     def p_simple_selector(self, p):
         '''
         simple_selector : element_name simple_selector_components
+                        | element_name
                         | simple_selector_component simple_selector_components
+                        | simple_selector_component
         '''
-        p[0] = u''.join(p[1:])
+        if len(p) == 2:
+            p[0] = p[1]
+        else:
+            p[0] = add_selectors(p[1], p[2])
 
     def p_simple_selectors(self, p):
         '''
-        simple_selectors : combinator simple_selector simple_selectors
-                         | empty
+        simple_selectors : simple_selectors combinator simple_selector
+                         | combinator simple_selector
         '''
-        p[0] = u''.join(p[1:])
-
+        if len(p) == 3:
+            p[0] = [(p[2], p[1])]
+        else:
+            p[0] = p[1] + [(p[3], p[2])]
 
     def p_simple_selector_component(self, p):
         '''
@@ -148,27 +168,33 @@ class cssparser(object):
                                   | attrib
                                   | pseudo
         '''
-        p[0] = p[1]
+        if p.slice[1].type == 'HASH':
+            p[0] = selector.Simple(ids=[p[1][1:]])
+        else:
+            p[0] = p[1]
 
     def p_simple_selector_components(self, p):
         '''
-        simple_selector_components : simple_selector_component simple_selector_components
-                                   | empty
+        simple_selector_components : simple_selector_components simple_selector_component
+                                   | simple_selector_component
         '''
-        p[0] = u''.join(p[1:])
+        if len(p) == 2:
+            p[0] = p[1]
+        else:
+            p[0] = add_selectors(p[1], p[2])
 
     def p_class(self, p):
         '''
         class : '.' IDENT
         '''
-        p[0] = u''.join(p[1:])
+        p[0] = selector.Simple(classes=p[2:])
 
     def p_element_name(self, p):
         '''
         element_name : IDENT
                      | '*'
         '''
-        p[0] = p[1]
+        p[0] = selector.Simple(p[1])
 
     def p_attrib(self, p):
         '''
@@ -182,7 +208,7 @@ class cssparser(object):
                | ':' FUNCTION spaces IDENT spaces ')'
                | ':' FUNCTION spaces ')'
         '''
-        p[0] = u''.join(p[1:])
+        p[0] = selector.Simple(pseudo=[u''.join(p[2:])])
 
     def p_declaration(self, p):
         '''
@@ -272,9 +298,6 @@ class cssparser(object):
         '''
         p[0] = p[1] and u' '
 
-
-
-
     def p_imports(self, p):
         '''
         imports : imports import spaces_or_sgml_comments
@@ -348,9 +371,13 @@ class cssparser(object):
                                | selector
         '''
         if len(p) == 2:
-            p[0] = p[1:]
+            p[0] = selector.Group(p[1])
         else:
-            p[0] = p[1] + p[4:]
+            if isinstance(p[4], selector.Group):
+                selectors = list(p[1]) + p[4:]
+                p[0] = selector.Group(*selectors)
+            else:
+                p[0] = selector.Group(p[1], p[4])
 
     def p_block_declarations(self, p):
         '''
@@ -398,7 +425,7 @@ class cssparser(object):
         '''
         empty :
         '''
-        p[0] = u''
+        pass
 
     def p_error(self, p):
         print "Syntax error at '%r'" % (p,)
