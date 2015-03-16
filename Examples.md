@@ -1,0 +1,36 @@
+The code examples below assume this snippet as a prefix:
+
+```
+from css.parse import parse
+data = """
+    em {
+    padding: 2px; 
+    margin: 1em;
+    border-width: medium;
+    border-style: dashed;
+    line-height: 2.4em;
+    }
+    p { color: red; font-size: 12pt }
+    p:first-letter { color: green; font-size: 200% }
+    p:first-line { color: blue }"""
+```
+
+### Iterating an entire stylesheet. ###
+
+A `Stylesheet` instance can be iterated to yield each rule, including `@charset` and `@import` rules, in the order they originally appear.
+
+```
+for rule in parse(data):
+    print rule
+    # or do something with each rule
+```
+
+### Iterating the declarations of a single rule. ###
+
+Rules that contain other rules, such as a `Media` or `Page` instances yield their child rules. A `Ruleset` instance yields its declarations.
+
+```
+for decl in parse(data)[0]:
+    print decl
+    # or do something else with each declaration
+```
